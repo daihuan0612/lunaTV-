@@ -38,11 +38,25 @@ jobs:
       NDK_VERSION: '29.0.14033849'
       NDK_VERSION_DEPS: '27.0.12077973'
     name: Build ${{ matrix.name }}
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     
     steps:
       - name: Clone repository
         run: |
           git clone https://${{ secrets.PULL_TOKEN }}@${{ secrets.REPO_URL }}.git .
+        shell: bash
+      
+      - name: Get version from pubspec.yaml
+        id: get_version
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            VERSION=$(powershell -Command "(Get-Content pubspec.yaml | Select-String '^version:' | ForEach-Object {\$_ -replace 'version: ', ''}).trim()")
+          else
+            VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
         shell: bash
       
       - name: Setup Flutter
@@ -51,24 +65,56 @@ jobs:
           cache: true
 
       - name: Install Java
-        if: runner.os == 'Linux'
+        if: matrix.name == 'android'
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: 21
 
       - name: Setup Android SDK
-        if: runner.os == 'Linux'
+        if: matrix.name == 'android'
         uses: android-actions/setup-android@v3
 
+      - name: Cache Gradle
+        if: matrix.name == 'android'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Cache NDK
+        if: matrix.name == 'android'
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+            ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION_DEPS }}
+          key: ${{ runner.os }}-ndk-${{ env.NDK_VERSION }}-${{ env.NDK_VERSION_DEPS }}
+
       - name: Install NDK
-        if: runner.os == 'Linux'
+        if: matrix.name == 'android' && steps.cache-ndk.outputs.cache-hit != 'true'
         run: |
           echo "y" | sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
           echo "y" | sdkmanager --install "ndk;${{ env.NDK_VERSION_DEPS }}"
       
+      - name: Cache Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
       - name: Build with build.sh (Android/macOS/iOS)
-        if: runner.os != 'Windows'
+        if: matrix.name != 'windows-amd64'
         continue-on-error: true
         run: |
           chmod +x build.sh
@@ -76,11 +122,11 @@ jobs:
         shell: bash
       
       - name: Build on Windows
-        if: runner.os == 'Windows'
+        if: matrix.name == 'windows-amd64'
         continue-on-error: true
         shell: pwsh
         run: |
-          $version = (Get-Content pubspec.yaml | Select-String '^version:' | ForEach-Object {$_ -replace 'version: ', ''}).trim()
+          $version = "${{ steps.get_version.outputs.version }}"
           Write-Host "Building version: $version" -ForegroundColor Green
           flutter pub get
           New-Item -ItemType Directory -Force -Path dist | Out-Null
@@ -100,7 +146,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     name: Create Release
-    if: startsWith(github.ref, 'refs/tags/') && (success() || failure())
+    if: startsWith(github.ref, 'refs/tags/')
     env:
       TZ: Asia/Shanghai
     steps:
@@ -119,7 +165,10 @@ jobs:
       
       - name: Get version from tag
         id: tag_version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
