@@ -177,6 +177,11 @@ jobs:
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               
+              if [[ ! "$filename" =~ \.(apk|ipa)$ ]]; then
+                echo "跳过文件: $filename"
+                continue
+              fi
+              
               RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
                 -F "chat_id=${CHANNEL_ID}" \
                 -F "document=@${file}")
@@ -219,7 +224,7 @@ jobs:
           
           📦 版本: `{version}`
           🔗 GitHub: [点击查看]({release_url})
-          💡 MacOS 包体过大请自行前往 Releases 处下载
+          💡 Windows 及 MacOS 包请自行前往 Releases 处下载
           🕐 发布于: {timestamp}"""
           
           media = []
