@@ -55,6 +55,7 @@ jobs:
           else
             VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
           fi
+          VERSION=$(echo "$VERSION" | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
         shell: bash
