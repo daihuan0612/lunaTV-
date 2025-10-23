@@ -1,4 +1,4 @@
-name: Build Selene
+name: Build 小苹果TV
 
 on:
   push:
@@ -142,7 +142,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Write-Host "Building Windows..." -ForegroundColor Blue
           flutter build windows --release
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/selene-$version-windows-x64-portable.zip" -Force
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/小苹果TV-$version-windows-x64-portable.zip" -Force
           Write-Host "Windows build complete" -ForegroundColor Green
       
       - name: Upload artifacts
@@ -184,7 +184,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag_version.outputs.version }}
-          name: Selene ${{ steps.tag_version.outputs.version }}
+          name: 小苹果TV ${{ steps.tag_version.outputs.version }}
           files: release-files/*
           draft: false
           prerelease: false
@@ -272,7 +272,7 @@ jobs:
           timestamp = os.environ['TIMESTAMP']
           release_notes = os.environ.get('RELEASE_NOTES', '').strip()
           
-          message = f"""🎉 *Selene 新版本发布*"""
+          message = f"""🎉 *小苹果TV 新版本发布*"""
           
           if release_notes:
               if len(release_notes) > 800:
